@@ -63,6 +63,46 @@ public class SignRenderPipelines {
     private static final Map<Identifier, RenderType> BASE_TYPES = new HashMap<>();
     private static final Map<Identifier, RenderType> ELEMENT_TYPES = new HashMap<>();
 
+    /**
+     * Whether the custom sign pipelines may be used at all.
+     * <p>
+     * Shader mods that replace Minecraft's render pipeline layer (Iris, VanillaPipelines, …)
+     * rebuild every program they don't know about. Our pipelines are
+     * {@code ENTITY_SNIPPET} plus a {@code ALPHA_CUTOUT} shader define, so when such a mod
+     * recompiles {@code clicksigns:pipeline/sign_base} the define is lost, the fragment
+     * shader never discards fully transparent texels, and the whole sign quad is blended in
+     * as a transparent rectangle. Vanilla flags this in the log as
+     * {@code Missing program clicksigns:pipeline/... in override list}.
+     * <p>
+     * When one of those mods is present we therefore render signs through vanilla's
+     * {@code ENTITY_TRANSLUCENT_CULL} pipeline, which is exactly what ClickSigns used on every
+     * version before 26.1 anyway - the sign loses its custom per-layer depth handling but it
+     * is actually visible.
+     */
+    private static final boolean USE_CUSTOM_PIPELINES = detectCustomPipelineSupport();
+
+    private static boolean detectCustomPipelineSupport() {
+        String[] offenders = {
+            "net.irisshaders.iris.Iris",
+            "com.moulberry.vanillapipeline.ModdedVanillaPipelines",
+        };
+        for (String offender : offenders) {
+            try {
+                Class.forName(offender);
+                ClickSigns.LOGGER.warn(
+                    "{} is installed, so ClickSigns falls back to vanilla render types for road"
+                        + " signs. Without this the custom sign pipelines get recompiled without"
+                        + " their shader defines and signs render fully transparent.",
+                    offender
+                );
+                return false;
+            } catch (ClassNotFoundException ignored) {
+                // Not installed, check the next one
+            }
+        }
+        return true;
+    }
+
     public static void registerAll(Consumer<RenderPipeline> consumer) {
         consumer.accept(SIGN_BASE);
         consumer.accept(SIGN_ELEMENT);
@@ -82,6 +122,30 @@ public class SignRenderPipelines {
         );
     }
 
+    /**
+     * Fallback render type using a vanilla pipeline, for shader mods that break custom ones.
+     */
+    private static RenderType createVanillaFallback(Identifier texture) {
+        return RenderType.create(
+            "clicksigns_sign_layer_vanilla",
+            RenderSetup.builder(RenderPipelines.ENTITY_TRANSLUCENT_CULL)
+                .withTexture("Sampler0", texture)
+                .useLightmap()
+                .useOverlay()
+                .affectsCrumbling()
+                .sortOnUpload()
+                .setOutline(RenderSetup.OutlineProperty.NONE)
+                .createRenderSetup()
+        );
+    }
+
+    private static RenderType layer(Map<Identifier, RenderType> cache, RenderPipeline pipeline, Identifier texture) {
+        return cache.computeIfAbsent(
+            texture,
+            id -> USE_CUSTOM_PIPELINES ? create(pipeline, id) : createVanillaFallback(id)
+        );
+    }
+
     private static DepthStencilState depth(boolean write, float scale, float constant) {
         //? if >=26.2 {
         return new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, write, -scale, -constant);
@@ -93,21 +157,21 @@ public class SignRenderPipelines {
 
     public static RenderType baseRenderType(Identifier texture) {
         //? if >=26.1 {
-        return BASE_TYPES.computeIfAbsent(texture, id -> create(SIGN_BASE, id));
+        return layer(BASE_TYPES, SIGN_BASE, texture);
         //?} else
         //return RenderType.entityTranslucentCull(texture);
     }
 
     public static RenderType elementRenderType(Identifier texture) {
         //? if >=26.1 {
-        return ELEMENT_TYPES.computeIfAbsent(texture, id -> create(SIGN_ELEMENT, id));
+        return layer(ELEMENT_TYPES, SIGN_ELEMENT, texture);
         //?} else
         //return RenderType.entityTranslucentCull(texture);
     }
 
     public static RenderType colorRenderType() {
         //? if >=26.1 {
-        return ELEMENT_TYPES.computeIfAbsent(WHITE, id -> create(SIGN_ELEMENT, id));
+        return layer(ELEMENT_TYPES, SIGN_ELEMENT, WHITE);
         //?} else
         //return RenderType.entityTranslucentCull(WHITE);
     }

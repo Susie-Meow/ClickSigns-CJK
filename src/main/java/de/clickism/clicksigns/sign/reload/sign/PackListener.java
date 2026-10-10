@@ -3,7 +3,6 @@ package de.clickism.clicksigns.sign.reload.sign;
 import de.clickism.clicksigns.ClickSigns;
 import de.clickism.clicksigns.registry.SignRegistries;
 import de.clickism.clicksigns.sign.reload.SignReloadListener;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 public class PackListener implements SignReloadListener {

@@ -23,7 +23,6 @@ stonecutter parameters {
             replace("FabricTagsProvider", "FabricTagProvider")
             replace("BlockTagsProvider", "BlockTagProvider")
         }
-        string {  }
     }
 }
 

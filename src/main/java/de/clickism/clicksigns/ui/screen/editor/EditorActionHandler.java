@@ -8,7 +8,6 @@ import de.clickism.clickui.event.events.DragStartEvent;
 import de.clickism.clickui.event.events.KeyPressEvent;
 import de.clickism.clickui.layout.Point;
 import de.clickism.clickui.util.versioning.KeyUtil;
-import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -181,10 +180,6 @@ public class EditorActionHandler {
      */
     private void forEachSelected(Consumer<Editable<SignElement>> action) {
         context.selection().forEach(action);
-    }
-
-    private void spawnElementNearSelected(@Nullable Editable<SignElement> element) {
-        spawnElementNear(element, context.selected());
     }
 
     private void spawnElementNear(@Nullable Editable<SignElement> element, @Nullable Editable<SignElement> other) {

@@ -64,7 +64,14 @@ public interface RoadSignCodec {
                     var front = TextureSource.codec().readPacket(buf);
                     var back = TextureSource.codec().readPacket(buf);
                     var elements = PacketCodec.readList(buf, SignElementCodec.codec().packetReader());
-                    var alignment = Alignment.values()[buf.readInt()];
+                    // The ordinal comes straight off the wire, so it must be range checked
+                    // before indexing into the enum values.
+                    int ordinal = buf.readInt();
+                    var alignments = Alignment.values();
+                    if (ordinal < 0 || ordinal >= alignments.length) {
+                        throw new IllegalArgumentException("Invalid alignment ordinal: " + ordinal);
+                    }
+                    var alignment = alignments[ordinal];
                     return new RoadSign(front, back, elements, alignment);
                 }
             )

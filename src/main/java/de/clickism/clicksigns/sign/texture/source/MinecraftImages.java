@@ -1,8 +1,6 @@
 package de.clickism.clicksigns.sign.texture.source;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import de.clickism.clicksigns.ClickSigns;
-import de.clickism.clicksigns.util.ColorUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;

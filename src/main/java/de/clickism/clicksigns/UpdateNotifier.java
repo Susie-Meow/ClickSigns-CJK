@@ -16,6 +16,7 @@ import java.util.UUID;
 import static de.clickism.clicksigns.util.ComponentUtil.l;
 import static de.clickism.clicksigns.util.ComponentUtil.t;
 
+
 //? if >=1.21.11 {
 import net.minecraft.server.permissions.Permissions;
 //?}

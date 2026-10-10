@@ -30,8 +30,12 @@ sourceSets {
 }
 
 java {
-    // Only 26.x, so always Java 25
-    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    // Only 26.x, so always Java 25.
+    // Machines without a JDK 25 can override the toolchain without touching this file:
+    //   -PjavaToolchain=26   or   javaToolchain=26 in ~/.gradle/gradle.properties
+    // source/target stay at 25, so the emitted bytecode is Java 25 either way.
+    val toolchainVersion = (project.findProperty("javaToolchain") as String?)?.toInt() ?: 25
+    toolchain.languageVersion.set(JavaLanguageVersion.of(toolchainVersion))
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
 }

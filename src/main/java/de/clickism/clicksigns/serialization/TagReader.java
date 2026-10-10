@@ -3,7 +3,6 @@ package de.clickism.clicksigns.serialization;
 import net.minecraft.resources.Identifier;
 
 import java.util.Collection;
-import java.util.Optional;
 
 public interface TagReader {
     Result<String> getString(String key);

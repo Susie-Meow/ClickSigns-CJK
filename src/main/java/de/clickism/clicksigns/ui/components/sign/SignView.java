@@ -210,15 +210,27 @@ public class SignView extends UiComponent<SignView> {
         } else if (element instanceof SymbolElement symbol) {
             return new SymbolView(symbol, colorResolver);
         } else if (element instanceof TextElement text) {
-            return memo(editableElement.id(), () -> new SignTextField(text, colorResolver))
-                .textElement(text)
-                .colorResolver(colorResolver)
-                .onValueChanged(value -> {
+            // The field itself is memoized by element id, so that the commit listener below is
+            // registered exactly once. onValueChanged is additive, so registering it on every
+            // rebuild would append another duplicate listener each time and re-commit the text
+            // N times.
+            var field = memo(editableElement.id(), () -> {
+                var created = new SignTextField(text, colorResolver)
+                    .textElement(text)
+                    .colorResolver(colorResolver);
+                created.onValueChanged(value -> {
                     roadSign.updateElement(
                         editableElement.id(),
                         old -> ((TextElement) old).withText(value)
                     );
                 });
+                return created;
+            });
+            // The element is re-synced OUTSIDE the memo on every rebuild: font size (scale),
+            // style and alignment are stored on the element, not on the field. Skipping this
+            // leaves the cached field rendering the element it was created with, so e.g. raising
+            // the font size would change the number but never the rendered text.
+            return field.textElement(text).colorResolver(colorResolver);
         } else {
             throw new IllegalArgumentException(
                 "Unknown SignElement type: " + element.getClass().getName()
@@ -257,15 +269,6 @@ public class SignView extends UiComponent<SignView> {
 
         // Give in UI coordinates
         return new Rect(minX, minY, width, height);
-    }
-
-    /**
-     * Resets the text field cache for all text elements in the sign view.
-     * This is useful when the underlying element's text has changed.
-     */
-    public void resetTextFieldCache() {
-        clearMemo();
-        clearMemoKeys();
     }
 
     /**

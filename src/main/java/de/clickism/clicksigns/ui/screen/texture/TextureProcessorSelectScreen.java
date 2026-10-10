@@ -10,12 +10,10 @@ import de.clickism.clickui.UiColor;
 import de.clickism.clickui.UiElement;
 import de.clickism.clickui.UiScreen;
 import de.clickism.clickui.style.Border;
-import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
 import static de.clickism.clicksigns.util.ComponentUtil.l;
-import static de.clickism.clicksigns.util.ComponentUtil.t;
 
 /**
  * Screen for selecting a {@link TextureProcessor}.

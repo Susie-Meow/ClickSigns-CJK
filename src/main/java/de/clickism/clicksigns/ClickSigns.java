@@ -19,9 +19,14 @@ public class ClickSigns {
      */
     public static final String MOD_ID = "clicksigns";
     /**
-     * Capitalized mod id of ClickSigns
+     * Display name of this mod.
+     * <p>
+     * The mod id stays {@code "clicksigns"} on purpose: this is a drop-in replacement for the
+     * upstream mod, so the block id ({@code clicksigns:road_sign}) and the resource namespace
+     * must not change - otherwise every sign in an existing world would be dropped as a missing
+     * block. Only the human readable name marks this build as the CJK fork.
      */
-    public static final String CAPITALIZED_MOD_ID = "ClickSigns";
+    public static final String CAPITALIZED_MOD_ID = "ClickSigns-CJK";
     /**
      * Main logger
      */

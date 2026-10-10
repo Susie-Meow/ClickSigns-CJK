@@ -19,10 +19,16 @@ public interface ClickSignsConfig {
             ---------------------------------------------------------
             """);
 
+    // Defaulted to false in this fork: the checker looks the mod up on Modrinth by its mod id,
+    // which is still "clicksigns" (see ClickSigns#MOD_ID). That resolves to the upstream project,
+    // so an upstream release would be advertised to players of this fork - and installing it would
+    // silently drop the CJK input and glyph support. Re-enable only after pointing the checker at
+    // this fork's own project id.
     ConfigOption<Boolean> CHECK_UPDATES =
-        CONFIG.option("check_updates", true)
+        CONFIG.option("check_updates", false)
             .description("""
                 Whether to check for updates on game start.
-                Recommended!
+                Disabled by default in ClickSigns-CJK: the mod id is still "clicksigns", so the
+                check would find upstream releases instead of this fork's.
                 """);
 }

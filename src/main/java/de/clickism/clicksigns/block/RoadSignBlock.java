@@ -1,11 +1,9 @@
 package de.clickism.clicksigns.block;
 
-import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import de.clickism.clicksigns.entity.RoadSignBlockEntity;
 import de.clickism.clicksigns.ui.screen.SignOverviewScreen;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;

@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 //? if >= 1.21.1 {
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -25,7 +26,10 @@ public abstract class Network {
      * @param <T>    the type of the packet
      */
     @SuppressWarnings("unchecked")
-    protected static <T extends Packet> void handleClient(T packet) {
+    protected static <T extends Packet> void handleClient(@Nullable T packet) {
+        // A reader may return null when it decided to drop a packet. Bail out here instead
+        // of dereferencing it three lines below.
+        if (packet == null) return;
         PacketType<T> type = (PacketType<T>) packet.type();
         type.clientHandler().handle(packet);
     }
@@ -108,7 +112,12 @@ public abstract class Network {
      * @param <T>    the type of the packet
      */
     @SuppressWarnings("unchecked")
-    protected static <T extends Packet> void handleServer(T packet, MinecraftServer server, ServerPlayer player) {
+    protected static <T extends Packet> void handleServer(
+        @Nullable T packet,
+        MinecraftServer server,
+        ServerPlayer player
+    ) {
+        if (packet == null) return;
         var type = (PacketType<T>) packet.type();
         server.execute(() -> type.serverHandler().handle(packet, player));
     }

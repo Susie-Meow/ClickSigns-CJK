@@ -6,7 +6,6 @@ import de.clickism.clicksigns.serialization.TagReader;
 import de.clickism.clicksigns.serialization.TagWriter;
 import net.minecraft.network.FriendlyByteBuf;
 
-import java.util.Optional;
 
 public interface CommonCodec<T> extends TagCodec<T>, PacketCodec<T> {
     static <T> CommonCodec<T> of(

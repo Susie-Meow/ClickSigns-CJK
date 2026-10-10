@@ -2,7 +2,6 @@ package de.clickism.clicksigns.serialization;
 
 //? if >=26.1 {
 
-import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.*;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;

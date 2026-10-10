@@ -2,7 +2,6 @@ package de.clickism.clicksigns.platform.network;
 
 import de.clickism.clicksigns.serialization.PacketReader;
 import de.clickism.clicksigns.serialization.PacketWriter;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 

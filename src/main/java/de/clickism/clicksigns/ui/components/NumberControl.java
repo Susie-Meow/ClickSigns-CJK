@@ -3,16 +3,13 @@ package de.clickism.clicksigns.ui.components;
 import de.clickism.clickui.State;
 import de.clickism.clickui.UiColor;
 import de.clickism.clickui.UiComponent;
-import de.clickism.clickui.UiElement;
 import de.clickism.clickui.style.Style;
 import de.clickism.clickui.util.versioning.KeyUtil;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
 import static de.clickism.clicksigns.util.ComponentUtil.l;
-import static de.clickism.clicksigns.util.ComponentUtil.t;
 
 /**
  * A UI component that allows the user to select a number within a specified range

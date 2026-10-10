@@ -2,7 +2,6 @@ package de.clickism.clicksigns.sign.element;
 
 import de.clickism.clicksigns.sign.color.DynamicColor;
 import net.minecraft.network.chat.Style;
-import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

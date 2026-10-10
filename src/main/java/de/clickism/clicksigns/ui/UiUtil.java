@@ -6,7 +6,6 @@ import de.clickism.clickui.elements.Image;
 import de.clickism.clickui.render.UiGraphics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import static de.clickism.clicksigns.ui.UiConstants.UI_SCALE;
 

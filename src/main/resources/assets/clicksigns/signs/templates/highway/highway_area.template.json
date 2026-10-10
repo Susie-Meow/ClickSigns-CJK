@@ -32,9 +32,9 @@
         "x": 9,
         "y": 9,
         "alignment": "CENTER",
-        "symbol": "clicksigns:signs/symbols/pictograms/highway.png",
+        "symbol": "clicksigns:signs/symbols/pictograms/services/highway.png",
         "texture": {
-          "base": "clicksigns:signs/symbols/pictograms/highway.png",
+          "base": "clicksigns:signs/symbols/pictograms/services/highway.png",
           "processors": [
             {
               "type": "replaceColor",

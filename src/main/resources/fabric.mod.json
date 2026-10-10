@@ -2,14 +2,18 @@
   "schemaVersion": 1,
   "id": "clicksigns",
   "version": "${mod_version}",
-  "name": "ClickSigns",
-  "description": "An innovative mod that lets you create custom highway & street signs!",
+  "name": "ClickSigns-CJK",
+  "description": "MC双语路牌Mod — 支持中文输入法与中文字形的自定义路牌模组 / Bilingual road sign mod for Minecraft: custom highway & street signs with working IME input and CJK glyphs.",
   "authors": [
     "Clickism"
   ],
+  "contributors": [
+    "Susie-Meow"
+  ],
   "contact": {
-    "homepage": "https://clickism.de/",
-    "sources": "https://github.com/Clickism/ClickSigns"
+    "homepage": "https://github.com/Susie-Meow/ClickSigns-CJK",
+    "sources": "https://github.com/Susie-Meow/ClickSigns-CJK",
+    "issues": "https://github.com/Susie-Meow/ClickSigns-CJK/issues"
   },
   "license": "GPL-3.0",
   "icon": "assets/clicksigns/icon.png",
@@ -35,10 +39,10 @@
   "depends": {
     "fabricloader": "*",
     "minecraft": "${minecraft_version}",
-    "java": ">=17",
+    "java": ">=25",
     "fabric-api": "*"
   },
   "suggests": {
-    "another-mod": "*"
+    "iris": "*"
   }
 }

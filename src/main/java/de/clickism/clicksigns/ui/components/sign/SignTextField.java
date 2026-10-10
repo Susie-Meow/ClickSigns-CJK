@@ -10,11 +10,15 @@ import de.clickism.clickui.event.events.KeyEvent;
 import de.clickism.clickui.layout.Point;
 import de.clickism.clickui.layout.Size;
 import de.clickism.clickui.render.RenderContext;
+import de.clickism.clickui.UiScreenHandler;
 import de.clickism.clickui.util.Util;
 import de.clickism.clickui.util.versioning.KeyUtil;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.util.Mth;
+import org.jetbrains.annotations.Nullable;
 
 import static de.clickism.clicksigns.render.element.TextRenderer.TEXT_RENDER_SCALE;
 import static de.clickism.clicksigns.ui.UiConstants.UI_SCALE;
@@ -27,8 +31,47 @@ import static de.clickism.clicksigns.util.Constants.BLOCK_PIXELS;
  * Handles rendering of the text with scaling and background color, and custom styling.
  */
 public class SignTextField extends TextField implements ElementProvider {
+    /**
+     * Blink period of the self-drawn caret, in milliseconds.
+     */
+    private static final int CARET_BLINK_INTERVAL = 500;
+    /**
+     * How long the caret stays solid after the last edit, in milliseconds.
+     * <p>
+     * Without this the caret can blink out exactly while the user is typing,
+     * which reads as "the caret disappears / lags behind input".
+     */
+    private static final int CARET_SOLID_AFTER_EDIT = 450;
+
     private TextElement element;
     private ColorResolver colorResolver;
+
+    /** Timestamp (ms) of the last edit, used to keep the caret solid while typing. */
+    private long lastEditTime = Long.MIN_VALUE;
+
+    /** Cached result of {@link #elementToShow()}, rebuilt whenever the text or element changes. */
+    private @Nullable TextElement showCache = null;
+    /** The text {@link #showCache} was built from, used as the cache key. */
+    private @Nullable String showCacheText = null;
+
+    /**
+     * Hidden native {@link EditBox} used purely as an IME (Input Method Editor) sink.
+     * <p>
+     * clickui's custom text field is not a native Minecraft text-input widget, so on platforms
+     * such as macOS the OS IME has no input context and silently falls back to inserting raw
+     * Latin characters (the "auto switch to English input method" symptom). By focusing a native
+     * {@link EditBox} — which Minecraft's IME system recognises — composed text (e.g. Chinese)
+     * is delivered through {@code charTyped} and mirrored back into this field. It is never
+     * rendered; only its position is used so the IME candidate window appears above the field.
+     * Shared across all SignTextField instances because only one field is focused at a time.
+     */
+    private static @Nullable EditBox imeBox = null;
+    private static @Nullable SignTextField activeField = null;
+    private static boolean imeSync = false;
+    /** Whether THIS field currently has the hidden IME box attached (per-instance). */
+    private boolean imeActive = false;
+    /** True while the IME responder is pushing composed text into this field. */
+    private boolean imeCommitting = false;
 
     /**
      * Creates a new SignTextField for the given TextElement and ColorResolver.
@@ -45,24 +88,235 @@ public class SignTextField extends TextField implements ElementProvider {
         // Set up style
         this.overrideStyle(style()
             .backgroundColor(null));
-        // Set up listeners so that width is recalculated when needed
+        // Recalculate width whenever the value changes
         this.onValueChanged(value -> {
             this.invalidateLayout();
+            this.lastEditTime = System.currentTimeMillis();
+            // Keep the hidden IME box in sync, so that its own caret index (which we
+            // mirror back to position the visible caret) stays valid after edits that
+            // originate from this field - e.g. inserting a line break with Enter.
+            pushToIme(value);
         });
-        this.onFocusEnter(event -> {
-            this.invalidateLayout();
-        });
-        this.onFocusExit(event -> {
-            this.invalidateLayout();
-        });
+        // A mouse click moves the caret. Registered after the field's own click handler
+        // (which runs first and updates cursorPos), so we can push the clicked position
+        // into the IME box; otherwise the next keystroke would land at the old index.
+        this.onClick(event -> pushCaretToIme());
         // Set up padding
         this.padding(0);
         this.multiLine(true);
     }
 
+    /**
+     * Attaches a hidden native {@link EditBox} as the IME input target for this field.
+     * <p>
+     * Focusing the native widget makes Minecraft's IME system (Windows/macOS/Linux) recognise an
+     * active text input, so composed characters (Chinese, Japanese, Korean, …) are delivered and
+     * mirrored back into this custom field. The box is positioned over this field only so the IME
+     * candidate window shows above the correct location; it is never drawn.
+     */
+    private void activateIme() {
+        var screen = UiScreenHandler.current();
+        if (screen == null) return;
+        var bounds = this.bounds();
+        var font = Minecraft.getInstance().font;
+        var box = new EditBox(
+            font,
+            bounds.x(),
+            bounds.y(),
+            Math.max(1, bounds.width()),
+            Math.max(1, bounds.height()),
+            Component.literal("")
+        );
+        box.setMaxLength(Integer.MAX_VALUE);
+        // Initialise with the current text. setValue keeps newlines that insertText would strip,
+        // which matters for multi-line signs.
+        box.setValue(this.value());
+        // Adopt the caret this field is currently showing, otherwise the first mirrored
+        // keystroke would be inserted at the wrong index.
+        box.setCursorPosition(this.cursorPos);
+        box.setHighlightPos(this.highlightPos);
+        box.setResponder(this::mirrorFromIme);
+        imeBox = box;
+        activeField = this;
+        screen.setFocused(box);
+        // Show the caret immediately when the field gains focus.
+        this.lastEditTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Mirrors text coming from the hidden native {@link EditBox} into this field.
+     * <p>
+     * Only the changed region is replaced (instead of swapping the whole value), so the
+     * caret keeps a meaningful position and line breaks survive. Afterwards the caret is
+     * taken from the native box, which is what the OS/IME actually moves when the user
+     * types, deletes or presses the arrow keys — including right after an IME candidate
+     * has been committed.
+     */
+    private void mirrorFromIme(String text) {
+        if (activeField != this || imeSync) return;
+        imeSync = true;
+        imeCommitting = true;
+        try {
+            String old = this.value();
+            if (!old.equals(text)) {
+                // Push the text through insertText() instead of value().
+                // value() is a plain setter that does NOT notify onValueChanged listeners,
+                // and the editor relies on exactly that notification to write the text back
+                // into the road sign (see SignView#createViewFor).
+                int start = commonPrefix(old, text);
+                int oldEnd = commonSuffixEnd(old, text, start);
+                int newEnd = text.length() - (old.length() - oldEnd);
+                this.cursorPos = start;
+                this.highlightPos = oldEnd;
+                this.insertText(text.substring(start, Math.max(start, newEnd)));
+            }
+            // Adopt the caret position of the native box (clamped to this field's length,
+            // which can be longer because the box drops some characters).
+            var box = imeBox;
+            int cursor = box != null
+                ? Mth.clamp(box.getCursorPosition(), 0, this.value().length())
+                : this.value().length();
+            this.cursorPos = cursor;
+            this.highlightPos = cursor;
+            this.handleCursorMove();
+        } finally {
+            imeCommitting = false;
+            imeSync = false;
+        }
+        this.lastEditTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Adopts the caret position of the hidden IME box.
+     * <p>
+     * Arrow keys, Home/End and mouse-free navigation move the native caret without changing
+     * the text, so the box's responder is never invoked for them. Polling once per frame
+     * keeps the drawn caret exactly where the native one is.
+     */
+    private void syncCaretFromIme() {
+        var box = imeBox;
+        if (box == null || activeField != this || imeSync) return;
+        int cursor = Mth.clamp(box.getCursorPosition(), 0, this.value().length());
+        if (cursor == this.cursorPos) return;
+        this.cursorPos = cursor;
+        this.highlightPos = cursor;
+        this.handleCursorMove();
+        this.lastEditTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Pushes this field's value (and caret) into the hidden IME box.
+     * <p>
+     * Used for edits that originate from this field, i.e. inserting a line break with
+     * Enter. The sync flag suppresses the responder so this doesn't bounce back.
+     */
+    private void pushToIme(String value) {
+        var box = imeBox;
+        if (box == null || activeField != this || imeSync) return;
+        imeSync = true;
+        try {
+            if (!value.equals(box.getValue())) {
+                box.setValue(value);
+            }
+            pushCaretToIme();
+        } finally {
+            imeSync = false;
+        }
+    }
+
+    /**
+     * Copies this field's caret/selection into the hidden IME box, so the next mirrored
+     * keystroke is inserted at the position the user sees.
+     */
+    private void pushCaretToIme() {
+        var box = imeBox;
+        if (box == null || activeField != this) return;
+        int length = box.getValue().length();
+        box.setCursorPosition(Math.min(this.cursorPos, length));
+        box.setHighlightPos(Math.min(this.highlightPos, length));
+    }
+
+    /**
+     * Returns the length of the common prefix of the two strings.
+     */
+    private static int commonPrefix(String a, String b) {
+        int max = Math.min(a.length(), b.length());
+        int i = 0;
+        while (i < max && a.charAt(i) == b.charAt(i)) {
+            i++;
+        }
+        return i;
+    }
+
+    /**
+     * Returns the index in {@code a} where the common suffix (shared with {@code b}) starts,
+     * never going below {@code min}.
+     */
+    private static int commonSuffixEnd(String a, String b, int min) {
+        int i = a.length();
+        int j = b.length();
+        while (i > min && j > min && a.charAt(i - 1) == b.charAt(j - 1)) {
+            i--;
+            j--;
+        }
+        return Math.max(i, min);
+    }
+
+    /**
+     * Detaches the native IME input box when this field loses focus.
+     */
+    private void deactivateIme() {
+        if (activeField != this) return;
+        var screen = UiScreenHandler.current();
+        if (screen != null) {
+            screen.setFocused(null);
+        }
+        imeBox = null;
+        activeField = null;
+    }
+
+    /**
+     * While the hidden native {@link EditBox} owns text input (IME active), it mirrors composed
+     * text into this field through its responder. We therefore skip duplicate insertion here for
+     * characters and backspace deletion, but still allow newline insertion so multi-line signs
+     * keep working while the IME box is attached.
+     */
+    @Override
+    protected void insertText(String string) {
+        // While the IME box owns input, composed characters already arrive through the
+        // responder above; ignore duplicate insertions coming from clickui's own input
+        // path. Always let the responder's own call through (imeCommitting), and always
+        // allow newlines so multi-line signs keep working while the IME box is attached.
+        if (!imeCommitting && activeField == this && imeBox != null && !string.equals("\n")) {
+            return;
+        }
+        super.insertText(string);
+    }
+
+    /**
+     * Updates the text element this field renders from.
+     * <p>
+     * This is called on every rebuild, not just once, because rendering properties such as the
+     * font size ({@code scale}), style and alignment live in the element rather than in the field.
+     * Only those properties trigger a cache clear and a layout pass - the text itself is owned by
+     * the field and handled by {@link #elementToShow()}.
+     *
+     * @param element the latest version of the text element
+     * @return this field, for chaining
+     */
     public SignTextField textElement(TextElement element) {
+        boolean visualChange = this.element == null
+            || this.element.scale() != element.scale()
+            || !this.element.style().equals(element.style())
+            || this.element.alignment() != element.alignment()
+            || this.element.x() != element.x()
+            || this.element.y() != element.y();
         this.element = element;
-        this.invalidateLayout();
+        if (visualChange) {
+            this.showCache = null;
+            this.showCacheText = null;
+            this.invalidateLayout();
+        }
         return this;
     }
 
@@ -101,21 +355,32 @@ public class SignTextField extends TextField implements ElementProvider {
 
     /**
      * Returns the text element that should be used for layout calculations.
+     * <p>
+     * Identical to {@link #elementToShow()} - both wrap {@link #textToShow()} into the current
+     * element - so it simply delegates to the cached version instead of allocating again.
      *
      * @return the text element to use for layout
      */
     protected TextElement elementToLayout() {
-        var text = textToShow();
-        return element.withText(text);
+        return elementToShow();
     }
 
     /**
-     * Returns the text element that will be rendered in the text field
+     * Returns the text element that will be rendered in the text field.
+     * <p>
+     * This is called several times per frame (rendering, cursor maths, layout), and building
+     * it splits the text and re-measures glyphs, so the result is cached until either the
+     * shown text or the underlying element changes.
      *
      * @return the text element to render
      */
     protected TextElement elementToShow() {
-        return element.withText(textToShow());
+        var text = textToShow();
+        if (showCache == null || !text.equals(showCacheText)) {
+            showCacheText = text;
+            showCache = element.withText(text);
+        }
+        return showCache;
     }
 
     @Override
@@ -164,11 +429,13 @@ public class SignTextField extends TextField implements ElementProvider {
         if (code == KeyUtil.KEY_UP) {
             // Move cursor up a line
             moveCursorVertically(-1);
+            pushCaretToIme();
             return true;
         }
         if (code == KeyUtil.KEY_DOWN) {
             // Move cursor down a line
             moveCursorVertically(1);
+            pushCaretToIme();
             return true;
         }
         return super.handleKeyPress(event);
@@ -241,6 +508,21 @@ public class SignTextField extends TextField implements ElementProvider {
 
     @Override
     public void render(RenderContext context) {
+        // Attach/detach the hidden native IME input box to follow this field's focus.
+        // clickui has no public focus-enter/exit events, so we poll focused() each frame
+        // and only act on the transition (so we don't rebuild the box every frame).
+        boolean focused = this.focused();
+        if (focused && !imeActive) {
+            imeActive = true;
+            activateIme();
+        } else if (!focused && imeActive) {
+            imeActive = false;
+            deactivateIme();
+        }
+        // The native box owns the caret for arrow keys / Home / End, which move it without
+        // changing the text, so its responder never fires for them. Pull the caret every
+        // frame instead, so the drawn caret follows those keys too.
+        syncCaretFromIme();
         // Render the text field
         var bounds = bounds();
         // Apply render scale
@@ -252,7 +534,92 @@ public class SignTextField extends TextField implements ElementProvider {
             renderOutline(context);
             // Render text and highlight
             super.render(context);
+            // Draw the caret on top of the text, so it is never covered by it.
+            drawCaret(context);
         });
+    }
+
+    /**
+     * Draws the text caret (insertion cursor).
+     * <p>
+     * The caret is <strong>self-drawn</strong>: clickui has no native text widget and no CSS,
+     * the caret is a filled rectangle painted through {@code UiGraphics}. clickui's own
+     * implementation ({@code AbstractField#renderTextField} -> {@code Field#renderCursor}) is
+     * suppressed because it is gated behind a private {@code isCursorVisible()} that we cannot
+     * influence from a subclass, and it is only a single pixel wide in the text colour.
+     * <p>
+     * Conditions handled here:
+     * <ul>
+     *     <li>Visible whenever the field has focus.</li>
+     *     <li>Stays solid for {@link #CARET_SOLID_AFTER_EDIT} ms after every edit, so typing
+     *         never has to wait for the blink phase (blinking is render-only, it does not
+     *         touch input).</li>
+     *     <li>Positioned from {@code cursorPos}, which is mirrored from the native IME box,
+     *         so it is exact for mixed CJK/Latin text and after an IME commit.</li>
+     *     <li>Drawn as a bright core with a 1px contrasting outline, so it stays readable on
+     *         both dark and light sign backgrounds.</li>
+     * </ul>
+     */
+    private void drawCaret(RenderContext context) {
+        if (!focused() || disabled()) return;
+        long time = System.currentTimeMillis();
+        boolean recentlyEdited = time - lastEditTime < CARET_SOLID_AFTER_EDIT;
+        if (!recentlyEdited && time / CARET_BLINK_INTERVAL % 2 != 0) {
+            return;
+        }
+        var element = elementToShow();
+        var lines = element.lines();
+        var font = Util.font();
+        var textPos = textPosition();
+        int lineIndex = 0;
+        int beforeWidth = 0;
+        int lineOffset = 0;
+        if (!lines.isEmpty()) {
+            var linePos = linePosOf(cursorPos);
+            lineIndex = Mth.clamp(linePos.line, 0, lines.size() - 1);
+            var line = lines.get(lineIndex);
+            var before = line.substring(0, Math.min(linePos.pos, line.length()));
+            beforeWidth = formattedWidth(before);
+            lineOffset = element.lineXOffset(line);
+        }
+        int x = textPos.x() + beforeWidth + lineOffset;
+        int y = textPos.y() + lineIndex * (font.lineHeight + this.element.style().lineGap());
+        int height = font.lineHeight + 1;
+        int color = caretColor();
+        int outline = isDark(color) ? 0xFFFFFFFF : 0xFF000000;
+        var graphics = context.graphics();
+        // Contrasting outline first, then the core on top: readable on any background.
+        graphics.fill(x - 1, y - 1, x + 2, y + height + 1, outline);
+        graphics.fill(x, y, x + 1, y + height, color);
+    }
+
+    /**
+     * Returns the caret colour, chosen to contrast with the background behind the text.
+     */
+    private int caretColor() {
+        int background = 0xFF000000; // Editor panels are dark by default
+        try {
+            var style = element.style();
+            if (style.isBackgroundShown()) {
+                var bg = style.backgroundColor();
+                if (bg.isPresent()) {
+                    background = colorResolver.resolve(bg.get());
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Fall back to the default above
+        }
+        return isDark(background) ? 0xFFFFFFFF : 0xFF101010;
+    }
+
+    /**
+     * Returns whether the given ARGB colour is dark, using Rec. 709 luma.
+     */
+    private static boolean isDark(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b < 128;
     }
 
     /**
@@ -331,28 +698,18 @@ public class SignTextField extends TextField implements ElementProvider {
         }
     }
 
+    /**
+     * Suppresses clickui's built-in caret.
+     * <p>
+     * clickui's {@code AbstractField#renderTextField} only calls this while its private
+     * {@code isCursorVisible()} allows it, which is a plain
+     * {@code System.currentTimeMillis()} blink that is not tied to typing. The caret is
+     * instead painted by {@link #drawCaret(RenderContext)} after the text has been drawn,
+     * which keeps it visible and correctly positioned at all times.
+     */
     @Override
     protected void renderCursor(RenderContext context, int x, int y, boolean inline) {
-        // Calculate position based on lines
-        var element = elementToShow();
-        var lines = element.lines();
-        var linePos = linePosOf(cursorPos);
-        var lineIndex = linePos.line;
-        var charIndex = linePos.pos;
-        // Calculate x position based on character width
-        var font = context.font();
-        var line = lines.get(lineIndex);
-        var lineText = line.substring(0, Math.min(charIndex, line.length()));
-        var textPos = textPosition();
-        // Calculate the position of the cursor
-        x = textPos.x() + formattedWidth(lineText) + element.lineXOffset(line);
-        y = textPos.y() + lineIndex * font.lineHeight + (lineIndex * this.element.style().lineGap());
-        super.renderCursor(context, x,
-            // Render one above to render on top of underline if not underline
-            inline
-                ? y
-                : y - 1,
-            inline);
+        // Intentionally empty - see drawCaret(RenderContext)
     }
 
     @Override

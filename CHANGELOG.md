@@ -19,8 +19,8 @@ For upstream history see [Clickism/ClickSigns](https://github.com/Clickism/Click
 
 - **中文输入**：编辑器文本框接入系统输入法，中文 / 日文 / 韩文可直接组词上屏，候选窗浮于输入框上方。
 - **IME input**: the editor text field now drives the OS input method, so Chinese / Japanese / Korean can be composed directly, with the candidate window above the field.
-- **中文字形**：随包附带 GNU Unifont 15.0.01（`unihex` 提供器），Minecraft 26.x 缺失的汉字可以正常显示，无需额外资源包。
-- **CJK glyphs**: GNU Unifont 15.0.01 ships with the mod (`unihex` provider), so the Han characters missing from Minecraft 26.x render correctly with no extra resource pack.
+- **中文字形**：随包附带 GNU Unifont 15.0.01（`unihex` 提供器），Minecraft 26.x 缺失的汉字可以正常显示，无需额外资源包。同一套字形对日文假名与韩文谚文也是全覆盖，日韩文路牌同样可用。
+- **CJK glyphs**: GNU Unifont 15.0.01 ships with the mod (`unihex` provider), so the Han characters missing from Minecraft 26.x render correctly with no extra resource pack. The same pack fully covers Japanese kana and Korean hangul, so Japanese and Korean signs work too.
 
 ### 修复 / Fixed
 

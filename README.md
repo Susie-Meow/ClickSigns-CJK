@@ -9,6 +9,10 @@
 > **本项目是分叉版。** ClickSigns-CJK 修改自 [Clickism 的 ClickSigns](https://github.com/Clickism/ClickSigns)（GPL-3.0），修改日期 2026-10。上游作者 Clickism 的版权声明与 GPL-3.0 许可全文均予保留，本项目不暗示上游背书。完整改动清单见「本分支相对上游的改动」。  
 > **This is a fork.** ClickSigns-CJK is derived from [ClickSigns by Clickism](https://github.com/Clickism/ClickSigns) (GPL-3.0); modifications dated 2026-10. Clickism's copyright notice and the full GPL-3.0 text are preserved, and nothing here implies upstream endorsement. The full change list is under "Changes in this fork".
 
+> [!TIP]  
+> **支持的不只是中文：日文和韩文同样可用。** 随附的 GNU Unifont 字形包对三种语言都是全覆盖，日文与韩文路牌可以直接输入、直接显示——**日本語・한국어도 그대로 입력하고 표시할 수 있습니다.**  
+> **It is not just Chinese: Japanese and Korean work too.** The bundled GNU Unifont pack covers all three completely, so Japanese and Korean signs can be typed and displayed just as directly.
+
 ### 什么是 ClickSigns？/ What is ClickSigns?
 
 ClickSigns 是一个简单的 Fabric 模组，用来制作自定义的高速公路与街道指示牌。虽然重点是路牌，但你实际上可以做出任何能动态叠加文字的图案，非常适合用来建造城市和村镇。
@@ -46,9 +50,9 @@ This fork is based on upstream [Clickism/ClickSigns](https://github.com/Clickism
 
 #### 1. 改名与许可合规 / Renaming & licence compliance
 
-分叉版改名为 **ClickSigns-CJK**（MC 双语路牌 Mod）。GPL-3.0 约束的是许可与署名，并不约束名字；GNU 对长期独立发展的分叉反而**建议**换名字，以免混淆。上游仓库中关于 Chinese / CJK / font 的 issue 数为 0，中文支持不在其计划内，因此本项目的定位是独立分叉，而不是"上游的另一种皮肤"。
+分叉版改名为 **ClickSigns-CJK**（MC 双语路牌 Mod）。名字里的「双语」指的是中英双语路牌这个主要用途；字形本身对中文、日文、韩文都是全覆盖，详见第 2 节。GPL-3.0 约束的是许可与署名，并不约束名字；GNU 对长期独立发展的分叉反而**建议**换名字，以免混淆。上游仓库中关于 Chinese / CJK / font 的 issue 数为 0，中文支持不在其计划内，因此本项目的定位是独立分叉，而不是"上游的另一种皮肤"。
 
-This fork is renamed **ClickSigns-CJK** (a bilingual road sign mod for Minecraft). GPL-3.0 governs licensing and attribution, not names, and GNU actually *recommends* that a fork which will develop independently pick a different name to avoid confusion. The upstream repo has zero issues mentioning Chinese, CJK or fonts, so Chinese support is not on its roadmap - this is an independent fork rather than another skin for upstream.
+This fork is renamed **ClickSigns-CJK** (a bilingual road sign mod for Minecraft). "Bilingual" here describes the main use case - Chinese/English road signs; the glyph coverage itself spans Chinese, Japanese and Korean in full, see section 2. GPL-3.0 governs licensing and attribution, not names, and GNU actually *recommends* that a fork which will develop independently pick a different name to avoid confusion. The upstream repo has zero issues mentioning Chinese, CJK or fonts, so Chinese support is not on its roadmap - this is an independent fork rather than another skin for upstream.
 
 **但 mod id 与资源命名空间刻意保持 `clicksigns` 不变。** `MOD_ID` 决定了方块注册 ID `clicksigns:road_sign`；一旦改动，已存档里放置的所有路牌会被 Minecraft 判定为缺失方块并直接清除，第三方使用 `clicksigns:` 命名空间的模板资源包也会全部失效。所以本项目是**上游的 drop-in 替换**：旧存档和现有资源包都能继续使用。Java 包名 `de.clickism.clicksigns` 同样保留——既减小 diff、方便后续合并上游补丁，也算一种对原作者的署名。
 
@@ -63,6 +67,14 @@ Three compliance items: Clickism's copyright notice and the full GPL-3.0 text ar
 Minecraft 26.2 自带字形不包含汉字，因此首先补了字体：新增 `assets/minecraft/font/default.json` 与 `uniform.json`，把 `unihex` 提供器接入 `minecraft:default` / `minecraft:uniform` 两个全局字体，并随包附带 `clicksigns_unifont.zip`（GNU Unifont 15.0.01，57,086 个字形，压缩后 938 KB）。不需要额外装资源包，牌子、按钮、提示框和聊天栏都会用同一套像素字形。
 
 Minecraft 26.2 ships no CJK glyphs, so the font comes first: new `assets/minecraft/font/default.json` and `uniform.json` wire a `unihex` provider into the global `minecraft:default` / `minecraft:uniform` fonts, backed by a bundled `clicksigns_unifont.zip` (GNU Unifont 15.0.01, 57,086 glyphs, 938 KB zipped). No extra resource pack is needed - signs, buttons, tooltips and the chat all use the same pixel look.
+
+这套字形覆盖的不只是中文。**日文**：平假名与片假名各 96 字、半角片假名 63 字，全覆盖。**韩文**：谚文音节 11,172 字（现代韩文全部音节）加谚文字母 256 字，全覆盖。**汉字**：CJK 统一表意文字全部 20,992 字、扩展 A 全部 6,592 字，简体、繁体与日文汉字共用同一批字形。输入法与显示走的是同一条链路，所以日文和韩文的牌子不需要额外配置。
+
+The pack covers more than Chinese. **Japanese**: fully covered (96 hiragana, 96 katakana, 63 halfwidth katakana). **Korean**: fully covered (all 11,172 modern hangul syllables plus 256 conjoining jamo). **Ideographs**: the complete CJK Unified block (20,992) and Ext-A (6,592), shared by Simplified, Traditional and Japanese kanji. Input and rendering share the same path, so Japanese and Korean signs need no extra setup.
+
+一个要知道的边界：字形包只含基本多文种平面（BMP），U+20000 以上的扩展 B 及更晚的罕用汉字没有收录——这与 Minecraft 自带的 unifont 覆盖范围相同。所以日本人名用汉字（如「𠮷」）或极罕见的繁体字会显示成缺字方块，常用字则不受影响。
+
+One limit worth knowing: the pack is BMP-only, so Ext-B and later rare ideographs above U+20000 are not included - the same coverage as Minecraft's own bundled unifont. Rare Japanese name kanji (e.g. 「𠮷」) or very rare Traditional characters will render as missing-glyph boxes; common characters are unaffected.
 
 `SignTextField` 里搭了一层输入法桥接。clickui 的文本框不是 Minecraft 的原生输入控件，macOS 下系统输入法拿不到输入上下文，会自动退回英文输入（也就是"一切输入就跳英文输入法"的现象）。现在会聚焦一个隐藏的原生 `EditBox` 作为输入法接收端，Minecraft 的 IME 系统能识别它，合成文本通过 `setResponder` 回传；`mirrorFromIme()` 用公共前后缀做差分，只替换真正变化的区段，换行和光标位置因此得以保留。
 
@@ -258,8 +270,8 @@ A line is written to the log when the fallback is activated, so you can confirm 
 
 ### 第三方组件 / Third-party components
 
-- **GNU Unifont**（Roman Czyborra、Paul Hardy 及贡献者）：提供 Minecraft 26.x 缺失的汉字字形，版本 15.0.01，以 `assets/minecraft/font/clicksigns_unifont.zip` 随包分发。双许可 `(GPL-2.0-or-later WITH Font-exception-2.0) OR OFL-1.1`；本项目按 OFL-1.1 再分发，完整许可文本与署名见 [`UNIFONT-LICENSE.txt`](src/main/resources/assets/minecraft/font/UNIFONT-LICENSE.txt)。
-- **GNU Unifont** (Roman Czyborra, Paul Hardy and contributors): supplies the CJK glyphs that Minecraft 26.x does not ship. Version 15.0.01, bundled as `assets/minecraft/font/clicksigns_unifont.zip`. Dual-licensed `(GPL-2.0-or-later WITH Font-exception-2.0) OR OFL-1.1`; redistributed here under OFL-1.1, with the full licence text and attribution in [`UNIFONT-LICENSE.txt`](src/main/resources/assets/minecraft/font/UNIFONT-LICENSE.txt).
+- **GNU Unifont**（Roman Czyborra、Paul Hardy 及贡献者）：提供 Minecraft 26.x 缺失的汉字、日文假名与韩文谚文字形，版本 15.0.01，以 `assets/minecraft/font/clicksigns_unifont.zip` 随包分发。双许可 `(GPL-2.0-or-later WITH Font-exception-2.0) OR OFL-1.1`；本项目按 OFL-1.1 再分发，完整许可文本与署名见 [`UNIFONT-LICENSE.txt`](src/main/resources/assets/minecraft/font/UNIFONT-LICENSE.txt)。
+- **GNU Unifont** (Roman Czyborra, Paul Hardy and contributors): supplies the Chinese, Japanese kana and Korean hangul glyphs that Minecraft 26.x does not ship. Version 15.0.01, bundled as `assets/minecraft/font/clicksigns_unifont.zip`. Dual-licensed `(GPL-2.0-or-later WITH Font-exception-2.0) OR OFL-1.1`; redistributed here under OFL-1.1, with the full licence text and attribution in [`UNIFONT-LICENSE.txt`](src/main/resources/assets/minecraft/font/UNIFONT-LICENSE.txt).
 
 ### 许可 / Licensing
 

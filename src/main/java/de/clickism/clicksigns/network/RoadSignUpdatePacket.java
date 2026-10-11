@@ -7,6 +7,7 @@ import de.clickism.clicksigns.platform.network.Packet;
 import de.clickism.clicksigns.platform.network.PacketType;
 import de.clickism.clicksigns.sign.RoadSign;
 import de.clickism.clicksigns.sign.codec.RoadSignCodec;
+import de.clickism.clicksigns.util.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 
@@ -43,19 +44,36 @@ public record RoadSignUpdatePacket(
      * Sign data arrives from a client, so a malformed or hostile packet must not be able to
      * push absurd dimensions or element counts into the renderer - neither on the server nor
      * on any client the update is broadcast to.
+     * <p>
+     * <b>The size check must not resolve textures on a dedicated server.</b> {@link RoadSign#width()}
+     * goes through {@link RoadSign#frontTexture()}, which needs {@code net.minecraft.client} classes
+     * that do not exist in a server distribution; touching them raises {@link NoClassDefFoundError}
+     * and used to kill the whole server on the first sign edit. So the size is taken from
+     * {@link RoadSign#declaredSize()}, which only reads the data the client sent. A source whose
+     * size is not declared takes it from a bundled image, which bounds it anyway, and every client
+     * still runs the full check against real textures before applying the update.
      *
-     * @param roadSign the sign to validate, may be null
+     * @param roadSign         the sign to validate, may be null
+     * @param texturesAvailable whether this side can resolve textures (true on the client, false on a server)
      * @return true if the sign may be applied
      */
-    private static boolean isValid(@Nullable RoadSign roadSign) {
+    private static boolean isValid(@Nullable RoadSign roadSign, boolean texturesAvailable) {
         if (roadSign == null) return false;
-        if (roadSign.width() < RoadSign.MIN_SIGN_SIZE.width()
-            || roadSign.width() > RoadSign.MAX_SIGN_SIZE.width()) return false;
-        if (roadSign.height() < RoadSign.MIN_SIGN_SIZE.height()
-            || roadSign.height() > RoadSign.MAX_SIGN_SIZE.height()) return false;
         // Element count is already bounded by PacketCodec#MAX_LIST_SIZE during decoding;
         // this rejects nonsense earlier and with a cheaper check.
-        return roadSign.elements().size() <= MAX_ELEMENTS;
+        if (roadSign.elements().size() > MAX_ELEMENTS) return false;
+
+        var size = roadSign.declaredSize().orElse(null);
+        if (size == null) {
+            // Nothing declared to check against. On a server that is all we get, so accept and
+            // let the receiving clients validate; on a client we can still resolve the real size.
+            if (!texturesAvailable) return true;
+            size = new Size(roadSign.width(), roadSign.height());
+        }
+        return size.width() >= RoadSign.MIN_SIGN_SIZE.width()
+            && size.width() <= RoadSign.MAX_SIGN_SIZE.width()
+            && size.height() >= RoadSign.MIN_SIGN_SIZE.height()
+            && size.height() <= RoadSign.MAX_SIGN_SIZE.height();
     }
 
     public static final PacketType<RoadSignUpdatePacket> TYPE = new PacketType<>(
@@ -101,7 +119,7 @@ public record RoadSignUpdatePacket(
                     ) > MAX_EDIT_DISTANCE_SQUARED) {
                     return;
                 }
-                if (!isValid(packet.roadSign())) {
+                if (!isValid(packet.roadSign(), false)) {
                     ClickSigns.LOGGER.warn(
                         "Rejected out-of-bounds road sign update from {} at {}",
                         player.getName().getString(), pos
@@ -113,7 +131,9 @@ public record RoadSignUpdatePacket(
                 // Update road sign
                 roadSignBlockEntity.updateRoadSign(packet.roadSign());
                 Platform.network().sendToAllInLevel(level, packet);
-            } catch (Exception e) {
+            } catch (Exception | LinkageError e) {
+                // LinkageError is caught on purpose: a mod must never be able to kill a dedicated
+                // server. If some path still reaches a client-only class, drop this one update.
                 ClickSigns.LOGGER.error("Error handling RoadSignUpdatePacket", e);
             }
         },
@@ -121,7 +141,7 @@ public record RoadSignUpdatePacket(
         (packet) -> {
             try {
                 // A malicious server could push the same garbage at us, so validate here too
-                if (!isValid(packet.roadSign())) return;
+                if (!isValid(packet.roadSign(), true)) return;
                 var client = Minecraft.getInstance();
                 var level = client.level;
                 if (level == null) return;
@@ -129,7 +149,7 @@ public record RoadSignUpdatePacket(
                 if (!(blockEntity instanceof RoadSignBlockEntity roadSignBlockEntity)) return;
                 // Update road sign
                 roadSignBlockEntity.updateRoadSign(packet.roadSign());
-            } catch (Exception e) {
+            } catch (Exception | LinkageError e) {
                 ClickSigns.LOGGER.error("Error handling RoadSignUpdatePacket on client", e);
             }
         }

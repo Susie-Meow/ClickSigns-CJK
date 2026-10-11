@@ -10,6 +10,7 @@ import de.clickism.clicksigns.sign.texture.Texture;
 import de.clickism.clicksigns.sign.texture.source.processors.Tiler;
 import de.clickism.clicksigns.ui.UiUtil;
 import de.clickism.clicksigns.util.PixelSized;
+import de.clickism.clicksigns.util.Size;
 import de.clickism.clickui.UiColor;
 import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
@@ -158,7 +159,11 @@ public record TextureSource(
                 .define("foreground", foregroundColor.color());
             DYNAMIC_COLOR_RESOLVERS.put(base, colorResolver);
             return colorResolver;
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
+            // LinkageError covers NoClassDefFoundError, which is what happens when this runs on
+            // a dedicated server: loading the image needs net.minecraft.client classes that only
+            // exist in the client distribution. That must degrade to "use the default colors",
+            // never take the server down.
             return defaultResolver;
         }
     }
@@ -180,7 +185,7 @@ public record TextureSource(
         Image image;
         try {
             image = generateAndCache(context);
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             // Only send error message once per unique texture source, to avoid spamming the log
             sendErrorOnce(identity, "Failed to resolve texture source " + identity, e);
             return errorTexture();
@@ -280,7 +285,7 @@ public record TextureSource(
         return image;
     }
 
-    private void sendErrorOnce(String identity, String message, Exception e) {
+    private void sendErrorOnce(String identity, String message, Throwable e) {
         if (ERROR_CACHE.contains(identity)) {
             return;
         }
@@ -301,6 +306,27 @@ public record TextureSource(
             sb.append("+").append(processor.identity(context));
         }
         return sb.toString();
+    }
+
+    /**
+     * Returns the output size this texture source declares, without loading or decoding any image.
+     * <p>
+     * A {@link Tiler} carries its output dimensions as plain fields, so for those sources the
+     * final pixel size is fully known from the data alone. Sources without a tiler inherit their
+     * size from the base image, which can only be learned by decoding it - and decoding goes
+     * through the client-only texture pipeline, so it is not available on a dedicated server.
+     * <p>
+     * This is the only size information a server can trust without touching client classes.
+     *
+     * @return the declared output size, or empty if the size is not carried by the data
+     */
+    public Optional<Size> declaredSize() {
+        for (var processor : processors) {
+            if (processor instanceof Tiler tiler) {
+                return Optional.of(new Size(tiler.outputWidth(), tiler.outputHeight()));
+            }
+        }
+        return Optional.empty();
     }
 
     /**

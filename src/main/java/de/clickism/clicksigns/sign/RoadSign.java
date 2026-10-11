@@ -15,6 +15,7 @@ import de.clickism.clicksigns.util.Size;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Represents a road sign with a front texture, back texture, and elements.
@@ -161,6 +162,21 @@ public record RoadSign(
     @Override
     public int width() {
         return frontTexture().width();
+    }
+
+    /**
+     * Gets the sign's pixel size from its texture source data alone, without resolving a texture.
+     * <p>
+     * {@link #width()} and {@link #height()} have to resolve the front texture, which runs the
+     * client-only image pipeline. A dedicated server does not have those classes at all, so any
+     * code path that validates incoming sign data must use this instead - it only reports a size
+     * when the sign's texture source carries one (see
+     * {@link TextureSource#declaredSize()}), and is empty otherwise.
+     *
+     * @return the sign size as declared by its texture source, or empty if it is not declared
+     */
+    public Optional<Size> declaredSize() {
+        return frontSource.declaredSize();
     }
 
     @Override

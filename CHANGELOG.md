@@ -41,6 +41,8 @@ For upstream history see [Clickism/ClickSigns](https://github.com/Clickism/Click
 - Server-side validation: edits must come from within 8 blocks, dimensions stay in range, at most 256 elements.
 - 网络包读取前校验列表长度与枚举 ordinal；读写异常改为抛出而非静默吞掉。
 - Packet reads bound-check list sizes and enum ordinals; write/read failures now throw instead of being swallowed.
+- **专用服务器崩溃**：在专用服务器上编辑路牌会让服务器整个退出（`NoClassDefFoundError: net/minecraft/client/renderer/texture/AbstractTexture`，客户端表现为「连接中断」）。原因是服务端校验调用了 `RoadSign.width()`，它要解析贴图、会碰到服务端不存在的 `net.minecraft.client.*` 类。服务端改用纯数据的 `RoadSign.declaredSize()`（读取 `Tiler` 的 `outputWidth/outputHeight`），客户端仍用真实贴图校验；相关 `catch` 放宽到 `Exception | LinkageError`，任何漏到客户端类的情况都只丢包记日志，不再打挂服务器。
+- **Dedicated server crash**: editing a road sign on a dedicated server killed the whole server (`NoClassDefFoundError: net/minecraft/client/renderer/texture/AbstractTexture`, seen by clients as "connection reset"). The server-side check called `RoadSign.width()`, which resolves textures and therefore touches `net.minecraft.client.*` classes that a server distribution does not have. The server now uses the data-only `RoadSign.declaredSize()` (reading the `Tiler`'s `outputWidth`/`outputHeight`) while clients still validate against real textures; the relevant `catch` clauses were widened to `Exception | LinkageError` so any remaining client-class leak just drops that packet instead of the server.
 
 ### 变更 / Changed
 

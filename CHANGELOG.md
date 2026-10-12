@@ -13,7 +13,23 @@ For upstream history see [Clickism/ClickSigns](https://github.com/Clickism/Click
 
 ---
 
-## 未发布 / Unreleased（2026-10）
+## 2.0-beta-6-hotfix-cjk.2（2026-10-12）
+
+### 修复 / Fixed
+
+- **专用服务器崩溃**：在专用服务器上编辑路牌会让服务器整个退出（`NoClassDefFoundError: net/minecraft/client/renderer/texture/AbstractTexture`，客户端表现为「连接中断」）。原因是服务端校验调用了 `RoadSign.width()`，它要解析贴图、会碰到服务端不存在的 `net.minecraft.client.*` 类。服务端改用纯数据的 `RoadSign.declaredSize()`（读取 `Tiler` 的 `outputWidth/outputHeight`），客户端仍用真实贴图校验；相关 `catch` 放宽到 `Exception | LinkageError`，任何漏到客户端类的情况都只丢包记日志，不再打挂服务器。
+- **Dedicated server crash**: editing a road sign on a dedicated server killed the whole server (`NoClassDefFoundError: net/minecraft/client/renderer/texture/AbstractTexture`, seen by clients as "connection reset"). The server-side check called `RoadSign.width()`, which resolves textures and therefore touches `net.minecraft.client.*` classes that a server distribution does not have. The server now uses the data-only `RoadSign.declaredSize()` (reading the `Tiler`'s `outputWidth`/`outputHeight`) while clients still validate against real textures; the relevant `catch` clauses were widened to `Exception | LinkageError` so any remaining client-class leak just drops that packet instead of the server.
+- 该回归由分叉提交 `2b1c66b` 引入（上游 `a9fde35` 本身没有这段校验），且与中文无关——任何路牌编辑都会触发，单人环境因客户端与服务端同 JVM 而无法复现。
+- The regression was introduced by fork commit `2b1c66b` (upstream `a9fde35` has no such check) and is not CJK-specific: every sign edit triggered it, and single-player never reproduced it because client and integrated server share one JVM.
+
+### 变更 / Changed
+
+- 版本号由 `2.0-beta-6-hotfix` 调整为 `2.0-beta-6-hotfix-cjk.2`，让启动器的 Mods 列表能与上一版区分。
+- Version bumped from `2.0-beta-6-hotfix` to `2.0-beta-6-hotfix-cjk.2` so launchers' mod lists can tell the two builds apart.
+
+---
+
+## 2.0-beta-6-hotfix-cjk.1（2026-10-10）
 
 ### 新增 / Added
 
